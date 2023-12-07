@@ -20,11 +20,14 @@ class TestNoteCreation(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create(username='username')
+        cls.user_client = Client()
+        cls.user_client.force_login(cls.user)
         cls.create_note_url = reverse('notes:add')
 
     def test_user_can_create_note(self):
-        self.client.force_login(self.user)
-        response = self.client.post(self.create_note_url, self.NOTE_DATA)
+        """User can create note."""
+        Note.objects.all().delete()
+        response = self.user_client.post(self.create_note_url, self.NOTE_DATA)
 
         self.assertRedirects(response, reverse('notes:success'))
         self.assertEqual(Note.objects.count(), 1)
@@ -35,30 +38,37 @@ class TestNoteCreation(TestCase):
         self.assertEqual(new_note.author, self.user)
 
     def test_anonymous_user_cant_create_note(self):
+        """Anonymous user can't create note."""
+        expected_note_count = Note.objects.count()
         response = self.client.post(self.create_note_url, self.NOTE_DATA)
         login_url = reverse('users:login')
         expected_url = f'{login_url}?next={self.create_note_url}'
         self.assertRedirects(response, expected_url)
-        self.assertEqual(Note.objects.count(), 0)
+        self.assertEqual(Note.objects.count(), expected_note_count)
 
     def test_not_unique_slug(self):
-        self.client.force_login(self.user)
-        Note.objects.create(title='test',
-                            text='test text',
-                            author=self.user,
-                            slug=self.NOTE_DATA['slug'])
-
-        response = self.client.post(self.create_note_url, self.NOTE_DATA)
-        self.assertFormError(response, 'form', 'slug',
-                             errors=(self.NOTE_DATA['slug'] + WARNING))
+        """User can't create note with existing slug."""
+        Note.objects.all().delete()
+        Note.objects.create(
+            title='test',
+            text='test text',
+            author=self.user,
+            slug=self.NOTE_DATA['slug']
+        )
+        response = self.user_client.post(self.create_note_url, self.NOTE_DATA)
+        self.assertFormError(
+            response, 'form', 'slug',
+            errors=(self.NOTE_DATA['slug'] + WARNING)
+        )
         self.assertEqual(Note.objects.count(), 1)
 
     def test_empty_slug(self):
-        self.client.force_login(self.user)
+        """Auto forming empty slug from title."""
+        Note.objects.all().delete()
         without_slug = self.NOTE_DATA.copy()
         without_slug.pop('slug')
 
-        response = self.client.post(self.create_note_url, without_slug)
+        response = self.user_client.post(self.create_note_url, without_slug)
 
         self.assertRedirects(response, reverse('notes:success'))
         self.assertEqual(Note.objects.count(), 1)
@@ -68,7 +78,12 @@ class TestNoteCreation(TestCase):
 
 class TestNoteDeleteEdit(TestCase):
 
-    NOTE_TEXT = 'text'
+    NOTE = {
+        'title': 'author note',
+        'text': 'small text',
+        'slug': 'slug'
+    }
+    SLUG = (NOTE['slug'],)
     FORM = {
         'title': 'new title',
         'text': 'new text',
@@ -80,39 +95,42 @@ class TestNoteDeleteEdit(TestCase):
         cls.author = User.objects.create(username='author')
         cls.author_client = Client()
         cls.author_client.force_login(cls.author)
-        cls.author_note = Note.objects.create(title='author note',
-                                              slug='slug',
-                                              author=cls.author,
-                                              text=cls.NOTE_TEXT)
+        cls.note = Note.objects.create(
+            title=cls.NOTE['title'],
+            slug=cls.NOTE['slug'],
+            author=cls.author,
+            text=cls.NOTE['text']
+        )
         cls.another_user = User.objects.create(username='user')
         cls.another_user_client = Client()
         cls.another_user_client.force_login(cls.another_user)
-        cls.another_user_note = Note.objects.create(title='another user note',
-                                                    slug='slugg',
-                                                    author=cls.another_user,
-                                                    text='text')
 
     def test_delete_note(self):
+        """User can delete only his notes."""
         test_data = (
-            (self.author_note, False),
-            (self.another_user_note, True),
+            (self.another_user_client, True),
+            (self.author_client, False)
         )
-        for note, result in test_data:
-            with self.subTest(name=note.title):
-                url = reverse('notes:delete', args=(note.slug,))
-                self.author_client.delete(url)
-                self.assertEqual(note in Note.objects.all(), result)
+        for client, result in test_data:
+            with self.subTest():
+                expected_count = Note.objects.count()
+                url = reverse('notes:delete', args=self.SLUG)
+                client.delete(url)
+                self.assertEqual(
+                    Note.objects.count() == expected_count, result
+                )
 
     def test_edit_note(self):
+        """User can edit only his notes."""
         test_data = (
-            (self.author_note, True),
-            (self.another_user_note, False),
+            (self.another_user_client, self.NOTE),
+            (self.author_client, self.FORM),
         )
-        for note, result in test_data:
-            with self.subTest(name=note.title):
-                url = reverse('notes:edit', args=(note.slug,))
-                self.author_client.post(url, data=self.FORM)
-                note.refresh_from_db()
-                self.assertEqual(note.text == self.FORM['text'], result)
-                self.assertEqual(note.title == self.FORM['title'], result)
-                self.assertEqual(note.slug == self.FORM['slug'], result)
+        for client, result in test_data:
+            with self.subTest():
+                url = reverse('notes:edit', args=self.SLUG)
+                client.post(url, data=self.FORM)
+                self.note.refresh_from_db()
+                self.assertEqual(self.note.text, result['text'])
+                self.assertEqual(self.note.title, result['title'])
+                self.assertEqual(self.note.slug, result['slug'])

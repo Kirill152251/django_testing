@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from django.conf import settings
+from django.test import Client
 from django.utils import timezone
 from django.urls import reverse
 
@@ -19,13 +20,15 @@ def another_user(django_user_model):
 
 
 @pytest.fixture
-def author_client(author, client):
+def author_client(author):
+    client = Client()
     client.force_login(author)
     return client
 
 
 @pytest.fixture
-def another_user_client(another_user, client):
+def another_user_client(another_user):
+    client = Client()
     client.force_login(another_user)
     return client
 
@@ -36,6 +39,11 @@ def news():
         title='title',
         text='news text',
     )
+
+
+@pytest.fixture
+def news_id(news):
+    return (news.id,)
 
 
 @pytest.fixture
@@ -50,6 +58,11 @@ def comment(author, news):
         author=author,
         text='comment text'
     )
+
+
+@pytest.fixture
+def comment_id(comment):
+    return (comment.id,)
 
 
 @pytest.fixture
@@ -71,13 +84,6 @@ def create_comments(another_user, news):
         )
         comment.creates = timezone.now() + timedelta(days=index)
         comment.save()
-
-
-@pytest.fixture
-def comment_form():
-    return {
-        'text': 'comment text'
-    }
 
 
 @pytest.fixture
