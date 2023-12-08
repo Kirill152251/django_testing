@@ -70,16 +70,10 @@ class TestRoutes(TestCase):
 
     def test_login_logout_sighup_pages_availability(self):
         """Login/Logout/Sighup pages availability."""
-        test_data = (
-            (self.author_client, 'users:login'),
-            (self.client, 'users:login'),
-            (self.author_client, 'users:logout'),
-            (self.client, 'users:logout'),
-            (self.author_client, 'users:signup'),
-            (self.client, 'users:signup'),
-        )
-        for client, name in test_data:
-            with self.subTest():
-                url = reverse(name)
-                response = client.get(url)
-                self.assertEqual(response.status_code, HTTPStatus.OK)
+        test_data = (self.client, self.author_client)
+        for client in test_data:
+            for name in ('users:login', 'users:logout', 'users:signup'):
+                with self.subTest():
+                    url = reverse(name)
+                    response = client.get(url)
+                    self.assertEqual(response.status_code, HTTPStatus.OK)

@@ -28,12 +28,12 @@ class TestContent(TestCase):
         users = (
             (self.user_client, False), (self.author_client, True)
         )
-        for client, note_in_list in users:
+        for client, is_note_in_list in users:
             with self.subTest():
                 response = client.get(url)
                 self.assertIn('object_list', response.context)
                 object_list = response.context['object_list']
-                self.assertEqual(self.note in object_list, note_in_list)
+                self.assertEqual(self.note in object_list, is_note_in_list)
 
     def test_pages_contains_form(self):
         """Note edit/add pages receive NoteForm."""

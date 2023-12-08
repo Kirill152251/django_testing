@@ -49,6 +49,6 @@ def test_comment_form_availability(users_client, expected_result, news_url):
     """Comment form availability for anonymous and authorised user."""
     response = users_client.get(news_url)
     result = 'form' in response.context
+    assert result == expected_result
     if result:
         assert isinstance(response.context['form'], CommentForm)
-    assert result == expected_result

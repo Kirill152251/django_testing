@@ -83,7 +83,7 @@ class TestNoteDeleteEdit(TestCase):
         'text': 'small text',
         'slug': 'slug'
     }
-    SLUG = (NOTE['slug'],)
+    URL_ARG = (NOTE['slug'],)
     FORM = {
         'title': 'new title',
         'text': 'new text',
@@ -104,33 +104,34 @@ class TestNoteDeleteEdit(TestCase):
         cls.another_user = User.objects.create(username='user')
         cls.another_user_client = Client()
         cls.another_user_client.force_login(cls.another_user)
+        cls.delete_url = reverse('notes:delete', args=cls.URL_ARG)
+        cls.edit_url = reverse('notes:edit', args=cls.URL_ARG)
 
-    def test_delete_note(self):
-        """User can delete only his notes."""
-        test_data = (
-            (self.another_user_client, True),
-            (self.author_client, False)
-        )
-        for client, result in test_data:
-            with self.subTest():
-                expected_count = Note.objects.count()
-                url = reverse('notes:delete', args=self.SLUG)
-                client.delete(url)
-                self.assertEqual(
-                    Note.objects.count() == expected_count, result
-                )
+    def test_author_can_delete_his_note(self):
+        """Author can delete his note."""
+        expected_count = Note.objects.count() - 1
+        self.author_client.delete(self.delete_url)
+        self.assertEqual(Note.objects.count(), expected_count)
+        self.assertNotIn(self.note, Note.objects.all())
 
-    def test_edit_note(self):
-        """User can edit only his notes."""
-        test_data = (
-            (self.another_user_client, self.NOTE),
-            (self.author_client, self.FORM),
-        )
-        for client, result in test_data:
-            with self.subTest():
-                url = reverse('notes:edit', args=self.SLUG)
-                client.post(url, data=self.FORM)
-                self.note.refresh_from_db()
-                self.assertEqual(self.note.text, result['text'])
-                self.assertEqual(self.note.title, result['title'])
-                self.assertEqual(self.note.slug, result['slug'])
+    def test_user_cant_delete_someone_elses_post(self):
+        """User cant delete someone else's post."""
+        expected_count = Note.objects.count()
+        self.another_user_client.delete(self.delete_url)
+        self.assertEqual(Note.objects.count(), expected_count)
+
+    def test_author_can_edit_his_note(self):
+        """User can edit his note."""
+        self.author_client.post(self.edit_url, data=self.FORM)
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.text, self.FORM['text'])
+        self.assertEqual(self.note.title, self.FORM['title'])
+        self.assertEqual(self.note.slug, self.FORM['slug'])
+
+    def test_user_cant_edit_someone_elses_note(self):
+        """User can't edit someone else's note."""
+        self.another_user_client.post(self.edit_url, data=self.FORM)
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.text, self.NOTE['text'])
+        self.assertEqual(self.note.title, self.NOTE['title'])
+        self.assertEqual(self.note.slug, self.NOTE['slug'])

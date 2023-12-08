@@ -7,7 +7,7 @@ from django.urls import reverse
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    'name, pk',
+    'name, args',
     (
         ('news:home', None),
         ('news:detail', pytest.lazy_fixture('news_id')),
@@ -16,9 +16,9 @@ from django.urls import reverse
         ('users:logout', None),
     ),
 )
-def test_pages_availability_for_anonymous_user(client, name, pk):
+def test_pages_availability_for_anonymous_user(client, name, args):
     """Public pages availability for anonymous user."""
-    url = reverse(name, args=pk)
+    url = reverse(name, args=args)
     response = client.get(url)
     assert response.status_code == HTTPStatus.OK
 
